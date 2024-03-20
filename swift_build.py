@@ -47,11 +47,14 @@ class ProcessListener:
 class SwiftExecCommand(ExecCommand):
     def run(self, **kwargs):
         listener = ProcessListener(self.on_process_finished)
-        cmd = "xcrun simctl list"
-        env = {}
+        mode = kwargs.pop("mode", None)
+        if mode:
+            if mode == "select_simulator":
+                cmd = "xcrun simctl list"
+                env = {}
+                process = AsyncProcess(cmd=cmd, shell_cmd=None, env=env, listener=listener, shell=True)
+                process.start()
 
-        process = AsyncProcess(cmd=cmd, shell_cmd=None, env=env, listener=listener, shell=True)
-        process.start()
 
     def on_process_finished(self, devices):
         self.window.run_command("show_ios_devices_select", {"devices": devices})
@@ -72,3 +75,6 @@ class ShowIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         # Use the picked index to access the corresponding tuple in self.items
         selected_uuid = self.items[picked][0]  # This is the UUID of the selected item
         print(f"User selected: {selected_uuid}")
+
+        cmd = f"xcrun simctl boot {selected_uuid}"
+        self.window.run_command('exec', {'shell_cmd': cmd})

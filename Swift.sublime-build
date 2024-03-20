@@ -16,7 +16,8 @@
             "name": "Swift Package Manager",
         },
         {
-            "name": "Xcodebuild",
+            "name": "Start Simulator",
+            "mode": "select_simulator"
         },
     ]
 }
