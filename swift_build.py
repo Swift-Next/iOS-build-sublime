@@ -58,37 +58,6 @@ class SwiftExecCommand(ExecCommand):
     def on_process_finished(self, devices):
         self.window.run_command("show_ios_devices_select", {"devices": devices})
 
-    def on_data(self, process, data):
-        lines = data.split('\n')
-        for line in lines:
-            if '-- iOS' in line:
-                self.in_ios_section = True
-                pattern = r"iOS \d+\.\d+"
-                self.ios_version = re.search(pattern, line).group()  # Directly using the string since it's a known value
-            elif '--' in line:
-                self.in_ios_section = False
-
-            if self.in_ios_section and ('iPhone' in line or 'iPad' in line):
-                print(f"line: {line}")
-                # Adjusted regex pattern to more accurately match your requirements
-                match = re.match(r'^\s+(iP\w+(?: \w+)? (?:Pro|Plus)?(?: Max)?.*)\(([\w\d]{8}-(?:[\w\d]{4}-){3}[\w\d]{12})\) \((Booted|Shutdown)\)', line)
-                print(f"match {match}")
-                if match:
-                    # device_type = match.group(1)  # "iPhone" or "iPad"
-                    device_name = match.group(1).strip()  # Full device name, including generation
-                    uuid = match.group(2)  # UUID, capturing if needed
-                    status = match.group(3)  # Status, e.g., "Shutdown"
-
-                    # Compose the string as per the required output format
-                    formatted_output = f"{self.ios_version}: {device_name} | {status}"
-                    self.devices[uuid] = formatted_output
-
-    def on_finished(self, process):
-        print("\nProcess finished.")
-        if self.on_finish_callback:
-            sublime.set_timeout(lambda: self.on_finish_callback(self.devices), 0)
-
-
 
 class ShowIosDevicesSelectCommand(sublime_plugin.WindowCommand):
     def run(self, devices):
