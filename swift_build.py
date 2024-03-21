@@ -62,25 +62,17 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "build_and_run":
             print('started')
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-            super().run(
-                shell_cmd=BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
-                **kwargs
-            )
+            command = BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            super().run( shell_cmd=command, **kwargs)
         elif self.mode == "clean_build":
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-            super().run(
-                shell_cmd=CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
-                **kwargs
-            )
+            command = CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            super().run( shell_cmd=command, **kwargs)
+
         elif self.mode == "open_project":
             full_project_path = f'{self.working_dir}/{self.projectfile_name}'
-            process = AsyncProcess(
-                cmd=None,
-                shell_cmd=OPEN_PROJECT.format(projct_path=full_project_path),
-                env={},
-                listener=None,
-                shell=False
-            )
+            command = OPEN_PROJECT.format(projct_path=full_project_path)
+            process = AsyncProcess( cmd=None, shell_cmd=command, env={}, listener=None, shell=False)
             process.start()
 
     def on_data(self, process, data):
@@ -107,14 +99,10 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     def handle_booted_device_uuid(self, uuid):
         self.picked_device_uuid = uuid
         if self.mode == "build_and_run": self.build_process(process=None)
-        else:
-            process = AsyncProcess(
-                cmd=None,
-                shell_cmd=SIMCTL_BOOT_DEVICE_CMD.format(device_uuid=uuid),
-                env={},
-                listener=self,
-                shell=True
-            )
+        else: # if "toggle_simulator"
+            command = SIMCTL_BOOT_DEVICE_CMD.format(device_uuid=uuid),
+            print(command)
+            process = AsyncProcess(cmd=None,shell_cmd=command, env={}, listener=self, shell=True)
             process.start()
 
     def process_simctl_devices(self, data):
@@ -196,19 +184,16 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
                 ## on built obtaining built product path
                 project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-                print(BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme))
-                process = AsyncProcess(
-                    cmd=None,
-                    shell_cmd=BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
-                    env={},
-                    listener=self,
-                    shell=True
-                )
+                command = BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+                print(command)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
                 process.start()
 
             if self.step == "obtained_product_path":
                 ## on obtained product path obtaining the devices list
-                process = AsyncProcess(cmd=None, shell_cmd=SIMCTL_LIST_CMD, env={}, listener=self, shell=True)
+                command = SIMCTL_LIST_CMD
+                print(command)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
                 process.start()
                 print("xcrun_simcl started")
 
@@ -218,25 +203,15 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
             elif self.step == "device_picked":
                 ## on device picked by a user fire install
-                print(INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path))
-                process = AsyncProcess(
-                    cmd=None,
-                    shell_cmd=INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path),
-                    env={},
-                    listener=self,
-                    shell=True
-                )
+                command = INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path)
+                print(command)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
                 process.start()
             elif self.step == "installed":
                 ## on installation finish run app
-                print(RUN_APP.format(device_uuid=self.picked_device_uuid, bundle_id=self.bundle),)
-                process = AsyncProcess(
-                    cmd=None,
-                    shell_cmd=RUN_APP.format(device_uuid=self.picked_device_uuid, bundle_id=self.bundle),
-                    env={},
-                    listener=self,
-                    shell=True
-                )
+                command = RUN_APP.format(device_uuid=self.picked_device_uuid, bundle_id=self.bundle)
+                print(command)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
                 process.start()
 
             elif self.step == "spawned":
