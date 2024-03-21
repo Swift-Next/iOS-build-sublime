@@ -11,6 +11,17 @@
         "*.plist",
         "Podfile",
     ],
+    "env": {
+        "LANG": "ru_RU.UTF-8",
+        "XPC_FLAGS": "0x0",
+        "TOOLCHAINS": "swift",
+        "cwd": "$folder",
+    },
+    "cancel": {
+        "kill": true,
+    },
+    "quiet": true,
+    "working_dir": "$folder",
     "variants": [
         {
             "name": "Swift Package Manager",
@@ -18,6 +29,14 @@
         {
             "name": "Start Simulator",
             "mode": "select_simulator"
+        },
+        {
+            "name": "Run Application",
+            "mode": "install_application"
+        },
+        {
+            "name": "Build & run",
+            "mode": "build_and_run"
         },
     ]
 }
