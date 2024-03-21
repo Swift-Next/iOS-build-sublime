@@ -1,0 +1,20 @@
+   iPhone SE (3rd generation) (E0C3EA3F-7F50-4F84-9AC7-A6E24C4FAB32) (Booted)
+   iPhone 15 (C6DC5AD5-A099-4B73-B28E-3C44CC8E91A1) (Shutdown)
+   iPhone 15 Plus (ECDF54AA-F53D-45A6-B96A-DF815A4879E8) (Shutdown)
+   iPhone 15 Pro (31B380BC-56E5-4B8B-83DC-8AE783C13058) (Shutdown)
+   iPhone 15 Pro Max (938E4144-3C97-4735-A087-16CDC0D9EF16) (Shutdown)
+   iPad Air (5th generation) (6A305EC5-DC92-445A-8F89-59F5D380B765) (Shutdown)
+   iPad (10th generation) (AE347381-11B0-411D-A6E3-06A7F4B34F2E) (Shutdown)
+   iPad mini (6th generation) (C2CA8044-B3AD-4E00-8144-2827A3998611) (Shutdown)
+   iPad Pro (11-inch) (4th generation) (E9D68DF8-5FE9-4AED-A09C-9AA1D6A3543D) (Shutdown)
+   iPad Pro (12.9-inch) (6th generation) (6CB92374-9ACE-4FBE-8541-3A929A881BCE) (Shutdown)
+
+
+^(iP\w+(?: \w+)? (?:Pro|Plus)?(?: Max)?)
+.*
+\(([\w\d]{8}-(?:[\w\d]{4}-){3}[\w\d]{12})\)
+
+^(iP\w+(?: \w+)? (?:Pro|Plus)?(?: Max)?).*\(([\w\d]{8}-(?:[\w\d]{4}-){3}[\w\d]{12})\) \((Booted|Shutdown)\)
+
+iPad Pro (12.9-inch) (6th generation) (6CB92374-9ACE-4FBE-8541-3A929A881BCE) (Shutdown)
+line:     iPad Pro (12.9-inch) (6th generation) (6CB92374-9ACE-4FBE-8541-3A929A881BCE) (Shutdown) 

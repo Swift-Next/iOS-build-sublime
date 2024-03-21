@@ -38,5 +38,13 @@
             "name": "Build & run",
             "mode": "build_and_run"
         },
+        {
+            "name": "Clean",
+            "mode": "clean_build"
+        },
+        {
+            "name": "Open in Xcode",
+            "mode": "open_project"
+        }
     ]
 }

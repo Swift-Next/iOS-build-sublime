@@ -1,16 +1,18 @@
-import sublime
 import sublime_plugin
 import re
+import time
 
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
 WARNING_PANE = "Warnings Pane"
 
-SIMCTL_LIST_CMD = "xcrun simctl list"
+OPEN_PROJECT = "open {projct_path}"
 
+SIMCTL_LIST_CMD = "xcrun simctl list"
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
 BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output"
+CLEAN_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
 CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
@@ -45,26 +47,42 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         self.scheme = self.window.active_view().settings().get('ios_build_system')['scheme']
         self.bundle = self.window.active_view().settings().get('ios_build_system')['bundle']
         self.file_regex = kwargs.get('file_regex', None)
+        self.working_dir = kwargs.get('working_dir', None)
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
 
         if self.mode == "toggle_simulator":
             process = AsyncProcess(cmd=None, shell_cmd=SIMCTL_LIST_CMD, env={}, listener=self, shell=True)
             process.start()
-        if self.mode == "build_and_run":
+        elif self.mode == "build_and_run":
             print('started')
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             super().run(
                 shell_cmd=BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
                 **kwargs
             )
+        elif self.mode == "clean_build":
+            project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
+            super().run(
+                shell_cmd=CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
+                **kwargs
+            )
+        elif self.mode == "open_project":
+            full_project_path = f'{self.working_dir}/{self.projectfile_name}'
+            process = AsyncProcess(
+                cmd=None,
+                shell_cmd=OPEN_PROJECT.format(projct_path=full_project_path),
+                env={},
+                listener=None,
+                shell=False
+            )
+            process.start()
 
     def on_data(self, process, data):
         if self.mode == "toggle_simulator":
             self.process_simctl_devices(data)
 
         elif self.mode == "build_and_run" and (self.step == "" or self.step == "spawned"):
-            # print("11111")
             super().on_data(process, data)
 
         elif self.mode == "build_and_run" and self.step == "built":
@@ -74,13 +92,16 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             self.process_simctl_devices(data)
             print(self.devices)
 
+        elif self.mode == "clean_build":
+            super().on_data(process, data)
+
 
     def on_finished(self, process):
-        self.build_process()
+        self.build_process(process=process)
 
     def handle_booted_device_uuid(self, uuid):
         self.picked_device_uuid = uuid
-        if self.mode == "build_and_run": self.build_process()
+        if self.mode == "build_and_run": self.build_process(process=None)
         else:
             process = AsyncProcess(
                 cmd=None,
@@ -155,7 +176,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
         print(f"manage_internal_state_end: {self.step}")
 
-    def build_process(self):
+    def build_process(self, process):
         print(f"on_finished_start: {self.step}")
         self.manage_build_internal_state()
         if self.mode == "toggle_simulator" and self.step != "booted":
@@ -210,10 +231,31 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                 process.start()
 
             elif self.step == "spawned":
+                super().on_finished(process)
                 ## on spawned finish build/run so far
-                pass
 
         print(f"on_finished_end: {self.step}")
+
+    def finzalize_build(self, proc):
+        if proc != super().proc:
+            return
+
+        if proc.killed:
+            super().write("\n[Cancelled]")
+        elif not super().quiet:
+            elapsed = time.time() - proc.start_time
+            if elapsed < 1:
+                elapsed_str = "%.0fms" % (elapsed * 1000)
+            else:
+                elapsed_str = "%.1fs" % (elapsed)
+
+            exit_code = proc.exit_code()
+            if exit_code == 0 or exit_code is None:
+                super().write("[Finished in %s]" % elapsed_str)
+            else:
+                super().write("[Finished in %s with exit code %d]\n" %
+                           (elapsed_str, exit_code))
+                super().write(super().debug_text)
 
     def present_warnings_and_errors_panel(self):
         output_view = self.window.find_output_panel("exec")
