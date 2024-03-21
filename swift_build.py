@@ -41,10 +41,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         SharedState.instance = self
 
         self.mode = kwargs.pop("mode", None)
-        self.projectfile_name = kwargs.pop('projectfile_name', None)
-        self.scheme = kwargs.pop('scheme', None)
-        self.bundle = kwargs.pop('bundle', None)
-        self.product_path = kwargs.pop('product_path', None)
+        self.projectfile_name = self.window.active_view().settings().get('ios_build_system')['projectfile_name']
+        self.scheme = self.window.active_view().settings().get('ios_build_system')['scheme']
+        self.bundle = self.window.active_view().settings().get('ios_build_system')['bundle']
         self.file_regex = kwargs.get('file_regex', None)
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
