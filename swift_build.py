@@ -4,12 +4,14 @@ import re
 
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
+WARNING_PANE = "Warnings Pane"
+
 SIMCTL_LIST_CMD = "xcrun simctl list"
 
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
-BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build"
-CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build"
+BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output"
+CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
 
@@ -26,6 +28,14 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     devices = {}
     step = ''
     picked_device_uuid = ''
+    bundle = ''
+    product_path = ''
+    scheme = ''
+    projectfile_name = ''
+    mode = ''
+    file_regex = ''
+    line_regex = ''
+    syntax = 'Packages/Text/Plain text.tmLanguage'
 
     def run(self, **kwargs):
         SharedState.instance = self
@@ -35,6 +45,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         self.scheme = kwargs.pop('scheme', None)
         self.bundle = kwargs.pop('bundle', None)
         self.product_path = kwargs.pop('product_path', None)
+        self.file_regex = kwargs.get('file_regex', None)
+        self.line_regex = kwargs.get('line_regex', None)
+        self.syntax = kwargs.get('syntax', None)
 
         if self.mode == "toggle_simulator":
             process = AsyncProcess(cmd=None, shell_cmd=SIMCTL_LIST_CMD, env={}, listener=self, shell=True)
@@ -51,7 +64,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         if self.mode == "toggle_simulator":
             self.process_simctl_devices(data)
 
-        elif self.mode == "build_and_run" and self.step == "":
+        elif self.mode == "build_and_run" and (self.step == "" or self.step == "spawned"):
+            # print("11111")
             super().on_data(process, data)
 
         elif self.mode == "build_and_run" and self.step == "built":
@@ -150,6 +164,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
         elif self.mode == "build_and_run":
             if self.step == "built":
+                ## present pane with warnings for convenience
+                self.present_warnings_and_errors_panel()
+
                 ## on built obtaining built product path
                 project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
                 process = AsyncProcess(
@@ -199,6 +216,34 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
         print(f"on_finished_end: {self.step}")
 
+    def present_warnings_and_errors_panel(self):
+        output_view = self.window.find_output_panel("exec")
+        if output_view is None: return
+
+        errors_struct = self.output_view.find_all_results_with_text()
+        print("errors_struct",len(errors_struct))
+        formatted_errors = []
+        for file, line, column, text in errors_struct:
+            formatted_error = f"[!]  {file}:{line}:{column}: {text}"
+            formatted_errors.append(formatted_error)
+
+        warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
+        warning_pane.settings().set("result_file_regex", self.file_regex)
+        warning_pane.settings().set("result_line_regex", self.line_regex)
+        # warning_pane.settings().set("result_base_dir", working_dir)
+        warning_pane.settings().set("word_wrap", False)
+        warning_pane.settings().set("line_numbers", True)
+        warning_pane.settings().set("gutter", False)
+        warning_pane.settings().set("scroll_past_end", False)
+        # self.warning_pane.assign_syntax(self.syntax)
+
+        warning_pane.set_read_only(False)
+        warning_pane.run_command('select_all')  # Select all existing content
+        warning_pane.run_command('right_delete')  # Delete selected content
+        warning_pane.run_command('append', {'characters': "\n".join(formatted_errors)})  # Append the formatted errors
+        warning_pane.set_read_only(True)
+
+        self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
 
 class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
     def run(self, devices, filter=None):
@@ -212,8 +257,6 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         self.items = [(key, f"{value['formatted_output']}") for key, value in filtered_devices.items()]
         self.items = sorted(self.items, key=lambda item: item[1].lower(), reverse=True)
 
-        print(self.items)
-
         if len(self.items) == 1:
             print("RunAppOnIosDevicesSelectCommand in")
             selected_uuid = self.items[0][0]  # This is the UUID of the selected item
@@ -224,7 +267,7 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         # Create a list of tuples where each tuple is (UUID, formatted string)
         # Prepare the list for display using only the formatted string part of each tuple
         display_items = [item[1] for item in self.items]
-        sublime.set_timeout(lambda: self.window.show_quick_panel(display_items, self.on_done), 0)
+        self.window.show_quick_panel(display_items, self.on_done)
 
     def on_done(self, picked):
         if picked == -1:

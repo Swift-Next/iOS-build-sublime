@@ -1,9 +1,8 @@
 {
     "target": "exec",
     "selector": "source.swift",
-    "keyfiles": [
-        "Package.swift",
-    ],
+    "file_regex": "^(\/.*\\.swift):(\\d+):(\\d+): \\w+: (.*)",
+    "keyfile": "Package.swift",
     "env": {
         "XPC_FLAGS": "0x0",
         "TOOLCHAINS": "swift",
@@ -11,15 +10,11 @@
     },
     "cancel": {
         "kill": true,
+        "kill_previous": true
     },
     "quiet": true,
     "working_dir": "$folder",
     "shell_cmd": "swift run $file_path",
-
-    // "projectfile_name": "AppClose.xcworkspace",
-    // "scheme": "AppClose",
-    // "bundle": "com.appclose.appclose",
-    // "product_path": "/Users/yar/Library/Developer/Xcode/DerivedData/AppClose-brevdtkvkmeibkbvojjivinndsjo/Build/Products/Debug-iphonesimulator/AppClose.app",
 
     "variants": [
         {
@@ -31,12 +26,12 @@
             "shell_cmd": "swift package resolve"
         },
         {
-            "name": "Package: Clean",
-            "shell_cmd": "swift package clean"
-        },
-        {
             "name": "Package: Update",
             "shell_cmd": "swift package update"
+        },
+        {
+            "name": "Package: Clean",
+            "shell_cmd": "swift package clean"
         },
     ]
 }
