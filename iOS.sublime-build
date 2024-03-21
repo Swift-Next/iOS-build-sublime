@@ -25,9 +25,9 @@
     // "quiet": true,
     "working_dir": "$folder",
 
-    // "projectfile_name": "AppClose.xcworkspace",
-    // "scheme": "AppClose",
-    // "bundle": "com.appclose.appclose",
+    // "projectfile_name": "YourApp.xcworkspace",
+    // "scheme": "AppScheme",
+    // "bundle": "com.yourapp.yourapp",
 
     "variants": [
         {
