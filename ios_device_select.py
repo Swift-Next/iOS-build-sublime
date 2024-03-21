@@ -1,5 +1,5 @@
 import sublime_plugin
-from .swift_build import SharedState
+
 
 class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
     def run(self, devices, filter=None):
@@ -39,4 +39,5 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         # self.window.run_command('exec', {'shell_cmd': cmd})
 
     def return_uuid(self, selected_uuid):
+        from .swift_build import SharedState, SwiftExecCommand # https://stackoverflow.com/a/52927102
         SharedState.instance.handle_booted_device_uuid(selected_uuid)

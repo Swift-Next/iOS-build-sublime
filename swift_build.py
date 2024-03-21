@@ -38,9 +38,14 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     file_regex = ''
     line_regex = ''
     syntax = 'Packages/Text/Plain text.tmLanguage'
+    target_build_dir = None
+    executable_folder_path = None
+
 
     def run(self, **kwargs):
         SharedState.instance = self
+
+        self.step = ""
 
         self.mode = kwargs.pop("mode", None)
         self.projectfile_name = self.window.active_view().settings().get('ios_build_system')['projectfile_name']
@@ -113,7 +118,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             process.start()
 
     def process_simctl_devices(self, data):
-        print(f"process_simctl_devices(self, data):")
+        # print(f"process_simctl_devices(self, data):")
         lines = data.split('\n')
         for line in lines:
             if '-- iOS' in line:
@@ -143,22 +148,24 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                     }
 
     def process_xcode_settings(self, data):
-        # print("process_xcode_settings(self, data):")
+        print("process_xcode_settings(self, data):")
         lines = data.split('\n')
-        target_build_dir, executable_folder_path = None, None
         for line in lines:
             if "TARGET_BUILD_DIR" in line:
-                target_build_dir = line.split('=')[1].strip()
+                self.target_build_dir = line.split('=')[1].strip()
             elif "EXECUTABLE_FOLDER_PATH" in line:
-                executable_folder_path = line.split('=')[1].strip()
+                self.executable_folder_path = line.split('=')[1].strip()
 
             # If both paths are found, no need to continue parsing
-            if target_build_dir and executable_folder_path:
-                break
+            if self.target_build_dir and self.executable_folder_path:
+                target_substring = "Build/Products"
+                index = self.target_build_dir.rfind(target_substring)
+                if index != -1:
+                    cut_path = self.target_build_dir[:index]
+                    self.product_path = f"{cut_path}{target_substring}/Debug-iphonesimulator/{self.executable_folder_path}"
+                    print("self.product_path", self.product_path)
+                    break
 
-        if target_build_dir and executable_folder_path:
-            # Combine the paths
-            self.product_path = f"{target_build_dir}/{executable_folder_path}"
 
     def manage_build_internal_state(self):
         print(f"manage_internal_state_begin: {self.step}")
@@ -189,6 +196,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
                 ## on built obtaining built product path
                 project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
+                print(BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme))
                 process = AsyncProcess(
                     cmd=None,
                     shell_cmd=BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme),
@@ -210,6 +218,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
             elif self.step == "device_picked":
                 ## on device picked by a user fire install
+                print(INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path))
                 process = AsyncProcess(
                     cmd=None,
                     shell_cmd=INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path),
@@ -232,30 +241,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
             elif self.step == "spawned":
                 super().on_finished(process)
-                ## on spawned finish build/run so far
 
         print(f"on_finished_end: {self.step}")
-
-    def finzalize_build(self, proc):
-        if proc != super().proc:
-            return
-
-        if proc.killed:
-            super().write("\n[Cancelled]")
-        elif not super().quiet:
-            elapsed = time.time() - proc.start_time
-            if elapsed < 1:
-                elapsed_str = "%.0fms" % (elapsed * 1000)
-            else:
-                elapsed_str = "%.1fs" % (elapsed)
-
-            exit_code = proc.exit_code()
-            if exit_code == 0 or exit_code is None:
-                super().write("[Finished in %s]" % elapsed_str)
-            else:
-                super().write("[Finished in %s with exit code %d]\n" %
-                           (elapsed_str, exit_code))
-                super().write(super().debug_text)
 
     def present_warnings_and_errors_panel(self):
         output_view = self.window.find_output_panel("exec")
@@ -285,43 +272,3 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         warning_pane.set_read_only(True)
 
         self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
-
-class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
-    def run(self, devices, filter=None):
-        print("RunAppOnIosDevicesSelectCommand")
-        self.devices = devices
-        if filter:
-            filtered_devices = {uuid: details for uuid, details in devices.items() if details['status'].lower() == filter.lower()}
-        else:
-            filtered_devices = devices
-
-        self.items = [(key, f"{value['formatted_output']}") for key, value in filtered_devices.items()]
-        self.items = sorted(self.items, key=lambda item: item[1].lower(), reverse=True)
-
-        if len(self.items) == 1:
-            print("RunAppOnIosDevicesSelectCommand in")
-            selected_uuid = self.items[0][0]  # This is the UUID of the selected item
-            self.return_uuid(selected_uuid=selected_uuid)
-            return
-
-        print("RunAppOnIosDevicesSelectCommand 2")
-        # Create a list of tuples where each tuple is (UUID, formatted string)
-        # Prepare the list for display using only the formatted string part of each tuple
-        display_items = [item[1] for item in self.items]
-        self.window.show_quick_panel(display_items, self.on_done)
-
-    def on_done(self, picked):
-        if picked == -1:
-            return
-        # Use the picked index to access the corresponding tuple in self.items
-        selected_uuid = self.items[picked][0]  # This is the UUID of the selected item
-        print(f"User selected: {selected_uuid}")
-
-        print("on_done")
-        self.return_uuid(selected_uuid)
-
-        # cmd = f"xcrun simctl install {selected_uuid} /Users/yar/Library/Developer/Xcode/DerivedData/AppClose-brevdtkvkmeibkbvojjivinndsjo/Build/Products/Debug-iphonesimulator/AppClose.app"
-        # self.window.run_command('exec', {'shell_cmd': cmd})
-
-    def return_uuid(self, selected_uuid):
-        SharedState.instance.handle_booted_device_uuid(selected_uuid)
