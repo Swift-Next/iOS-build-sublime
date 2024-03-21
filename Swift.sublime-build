@@ -1,18 +1,10 @@
 {
-    "target": "swift_exec",
+    "target": "exec",
     "selector": "source.swift",
     "keyfiles": [
-        "*.xcodeproj",
-        "*.xcodeworkspace",
-        "*.swift",
-        "*.h",
-        "*.m",
-        "*.mm",
-        "*.plist",
-        "Podfile",
+        "Package.swift",
     ],
     "env": {
-        "LANG": "ru_RU.UTF-8",
         "XPC_FLAGS": "0x0",
         "TOOLCHAINS": "swift",
         "cwd": "$folder",
@@ -22,21 +14,29 @@
     },
     "quiet": true,
     "working_dir": "$folder",
+    "shell_cmd": "swift run $file_path",
+
+    // "projectfile_name": "AppClose.xcworkspace",
+    // "scheme": "AppClose",
+    // "bundle": "com.appclose.appclose",
+    // "product_path": "/Users/yar/Library/Developer/Xcode/DerivedData/AppClose-brevdtkvkmeibkbvojjivinndsjo/Build/Products/Debug-iphonesimulator/AppClose.app",
+
     "variants": [
         {
-            "name": "Swift Package Manager",
+            "name": "Package: Build",
+            "shell_cmd": "swift build"
         },
         {
-            "name": "Start Simulator",
-            "mode": "select_simulator"
+            "name": "Package: Resolve",
+            "shell_cmd": "swift package resolve"
         },
         {
-            "name": "Run Application",
-            "mode": "install_application"
+            "name": "Package: Clean",
+            "shell_cmd": "swift package clean"
         },
         {
-            "name": "Build & run",
-            "mode": "build_and_run"
+            "name": "Package: Update",
+            "shell_cmd": "swift package update"
         },
     ]
 }

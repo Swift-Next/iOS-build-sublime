@@ -1,0 +1,40 @@
+{
+    "target": "swift_exec",
+    "selector": "source.swift",
+    "keyfiles": [
+        "*.xcodeproj",
+        "*.xcodeworkspace",
+        "*.swift",
+        "*.h",
+        "*.m",
+        "*.mm",
+        "*.plist",
+        "Podfile",
+    ],
+    "env": {
+        "XPC_FLAGS": "0x0",
+        "TOOLCHAINS": "swift",
+        "cwd": "$folder",
+    },
+    "cancel": {
+        "kill": true,
+    },
+    "quiet": true,
+    "working_dir": "$folder",
+
+    "projectfile_name": "AppClose.xcworkspace",
+    "scheme": "AppClose",
+    "bundle": "com.appclose.appclose",
+    "product_path": "/Users/yar/Library/Developer/Xcode/DerivedData/AppClose-brevdtkvkmeibkbvojjivinndsjo/Build/Products/Debug-iphonesimulator/AppClose.app",
+
+    "variants": [
+        {
+            "name": "Toggle Simulator",
+            "mode": "toggle_simulator"
+        },
+        {
+            "name": "Build & run",
+            "mode": "build_and_run"
+        },
+    ]
+}
