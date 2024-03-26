@@ -1,6 +1,4 @@
-import sublime_plugin
 import re
-import time
 
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
@@ -11,14 +9,15 @@ OPEN_PROJECT = "open {projct_path}"
 SIMCTL_LIST_CMD = "xcrun simctl list"
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
-BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output"
+BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output --quieter"
 CLEAN_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
-CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
+CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output --quieter"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
 
 INSTALL_APP = "xcrun simctl install {device_uuid} {product_path}"
-RUN_APP = "xcrun simctl launch {device_uuid} {bundle_id} --terminate-spawned-process"
+RUN_APP = "xcrun simctl launch {with_debugger} --terminate-running-process {device_uuid} {bundle_id}"
+
 
 class SharedState:
     instance = None
@@ -41,11 +40,12 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     target_build_dir = None
     executable_folder_path = None
 
-
     def run(self, **kwargs):
         SharedState.instance = self
 
-        self.step = ""
+        self.step = kwargs.pop("step", "")
+        self.env = kwargs.get("env", {})
+        self.with_debugger = kwargs.pop('debugger', False)
 
         self.mode = kwargs.pop("mode", None)
         self.projectfile_name = self.window.active_view().settings().get('ios_build_system')['projectfile_name']
@@ -57,12 +57,16 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         self.syntax = kwargs.get('syntax', None)
 
         if self.mode == "toggle_simulator":
-            process = AsyncProcess(cmd=None, shell_cmd=SIMCTL_LIST_CMD, env={}, listener=self, shell=True)
+            if self.step == "Booted": self.step = ""
+            command = SIMCTL_LIST_CMD
+            print(command)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
             process.start()
         elif self.mode == "build_and_run":
             print('started')
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             command = BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            print(command)
             super().run( shell_cmd=command, **kwargs)
         elif self.mode == "clean_build":
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
@@ -72,7 +76,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "open_project":
             full_project_path = f'{self.working_dir}/{self.projectfile_name}'
             command = OPEN_PROJECT.format(projct_path=full_project_path)
-            process = AsyncProcess( cmd=None, shell_cmd=command, env={}, listener=None, shell=False)
+            print(command)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=None, shell=False)
             process.start()
 
     def on_data(self, process, data):
@@ -100,9 +105,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         self.picked_device_uuid = uuid
         if self.mode == "build_and_run": self.build_process(process=None)
         else: # if "toggle_simulator"
-            command = SIMCTL_BOOT_DEVICE_CMD.format(device_uuid=uuid),
+            command = SIMCTL_BOOT_DEVICE_CMD.format(device_uuid=uuid)
             print(command)
-            process = AsyncProcess(cmd=None,shell_cmd=command, env={}, listener=self, shell=True)
+            process = AsyncProcess(cmd=None,shell_cmd=command, env=self.env, listener=self, shell=True)
             process.start()
 
     def process_simctl_devices(self, data):
@@ -166,7 +171,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             elif self.step == "installed": self.step = "spawned"
             elif self.step == "spawned": self.step = ""
         elif self.mode == "toggle_simulator":
-            if self.step == "": self.step = "booted"
+            if self.step == "": self.step = "started"
+            elif self.step == "started": self.step = "booted"
             elif self.step == "booted": self.step = ""
 
         print(f"manage_internal_state_end: {self.step}")
@@ -175,6 +181,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         print(f"on_finished_start: {self.step}")
         self.manage_build_internal_state()
         if self.mode == "toggle_simulator" and self.step != "booted":
+            print("manage_build_internal_state()")
             self.window.run_command("run_app_on_ios_devices_select", {"devices": self.devices})
 
         elif self.mode == "build_and_run":
@@ -186,14 +193,14 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                 project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
                 command = BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
 
             if self.step == "obtained_product_path":
                 ## on obtained product path obtaining the devices list
                 command = SIMCTL_LIST_CMD
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
                 print("xcrun_simcl started")
 
@@ -205,13 +212,14 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                 ## on device picked by a user fire install
                 command = INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path)
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
             elif self.step == "installed":
                 ## on installation finish run app
-                command = RUN_APP.format(device_uuid=self.picked_device_uuid, bundle_id=self.bundle)
+                with_debugger = "--wait-for-debugger" if self.with_debugger else ""
+                command = RUN_APP.format(with_debugger=with_debugger, device_uuid=self.picked_device_uuid, bundle_id=self.bundle)
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env={}, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
 
             elif self.step == "spawned":
@@ -230,20 +238,21 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             formatted_error = f"[!]  {file}:{line}:{column}: {text}"
             formatted_errors.append(formatted_error)
 
-        warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
-        warning_pane.settings().set("result_file_regex", self.file_regex)
-        warning_pane.settings().set("result_line_regex", self.line_regex)
-        # warning_pane.settings().set("result_base_dir", working_dir)
-        warning_pane.settings().set("word_wrap", False)
-        warning_pane.settings().set("line_numbers", True)
-        warning_pane.settings().set("gutter", False)
-        warning_pane.settings().set("scroll_past_end", False)
-        # self.warning_pane.assign_syntax(self.syntax)
+        if len(formatted_errors) > 0:
+            warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
+            warning_pane.settings().set("result_file_regex", self.file_regex)
+            warning_pane.settings().set("result_line_regex", self.line_regex)
+            # warning_pane.settings().set("result_base_dir", working_dir)
+            warning_pane.settings().set("word_wrap", False)
+            warning_pane.settings().set("line_numbers", True)
+            warning_pane.settings().set("gutter", False)
+            warning_pane.settings().set("scroll_past_end", False)
+            # self.warning_pane.assign_syntax(self.syntax)
 
-        warning_pane.set_read_only(False)
-        warning_pane.run_command('select_all')  # Select all existing content
-        warning_pane.run_command('right_delete')  # Delete selected content
-        warning_pane.run_command('append', {'characters': "\n".join(formatted_errors)})  # Append the formatted errors
-        warning_pane.set_read_only(True)
+            warning_pane.set_read_only(False)
+            warning_pane.run_command('select_all')  # Select all existing content
+            warning_pane.run_command('right_delete')  # Delete selected content
+            warning_pane.run_command('append', {'characters': "\n".join(formatted_errors)})  # Append the formatted errors
+            warning_pane.set_read_only(True)
 
-        self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
+            self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})

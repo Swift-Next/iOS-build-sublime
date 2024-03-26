@@ -35,8 +35,18 @@
             "mode": "toggle_simulator"
         },
         {
-            "name": "Build & run",
+            "name": "Build & Run",
             "mode": "build_and_run"
+        },
+        {
+            "name": "Build & Run with Debugger",
+            "mode": "build_and_run",
+            "debugger": true
+        },
+        {
+            "name": "Run",
+            "mode": "build_and_run",
+            "step": "installed"
         },
         {
             "name": "Clean",

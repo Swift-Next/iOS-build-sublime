@@ -1,6 +1,5 @@
 import sublime_plugin
 
-
 class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
     def run(self, devices, filter=None):
         print("RunAppOnIosDevicesSelectCommand")
