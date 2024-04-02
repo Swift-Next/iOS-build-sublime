@@ -50,7 +50,7 @@
         },
         {
             "name": "Clean",
-            "mode": "clean_build"
+            "mode": "clean"
         },
         {
             "name": "Open in Xcode",

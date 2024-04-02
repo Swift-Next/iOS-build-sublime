@@ -1,5 +1,5 @@
 import re
-
+from sublime import status_message
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
 WARNING_PANE = "Warnings Pane"
@@ -9,9 +9,9 @@ OPEN_PROJECT = "open {projct_path}"
 SIMCTL_LIST_CMD = "xcrun simctl list"
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
-BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output --quieter"
+BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output --quieter"
 CLEAN_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
-CLEAN_BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output --quieter"
+CLEAN_BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
 
@@ -64,13 +64,16 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             process.start()
         elif self.mode == "build_and_run":
             print('started')
+            self.step = ""
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             command = BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
             print(command)
+            self.show_current_state()
             super().run( shell_cmd=command, **kwargs)
-        elif self.mode == "clean_build":
+        elif self.mode == "clean":
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             command = CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            status_message("Cleaning.")
             super().run( shell_cmd=command, **kwargs)
 
         elif self.mode == "open_project":
@@ -160,21 +163,32 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                     break
 
 
+    def show_current_state(self):
+        if self.mode == "build_and_run":
+            if self.step == "": self.window.active_view().set_status("swift_build_status", "Building...")
+            elif self.step == "built": self.window.active_view().set_status("swift_build_status", "Obtaining Product Path...")
+            elif self.step == "obtained_product_path": self.window.active_view().set_status("swift_build_status", "Obraining Devices...")
+            elif self.step == "obrained_devices": self.window.active_view().set_status("swift_build_status", "Picking Devices...")
+            elif self.step == "device_picked": self.window.active_view().set_status("swift_build_status", "App Installation...")
+            elif self.step == "installed": self.window.active_view().set_status("swift_build_status", "App Spawning...")
+            elif self.step == "spawned": self.window.active_view().set_status("swift_build_status", "")
+
     def manage_build_internal_state(self):
         print(f"manage_internal_state_begin: {self.step}")
         if self.mode == "build_and_run":
-            if self.step == "" or self.step == "spawned": self.step = "built"
+            if self.step == "": self.step = "built"
             elif self.step == "built": self.step = "obtained_product_path"
             elif self.step == "obtained_product_path": self.step = "obrained_devices"
             elif self.step == "obrained_devices": self.step = "device_picked"
             elif self.step == "device_picked": self.step = "installed"
             elif self.step == "installed": self.step = "spawned"
-            elif self.step == "spawned": self.step = ""
+            elif self.step == "spawned": pass
         elif self.mode == "toggle_simulator":
             if self.step == "": self.step = "started"
             elif self.step == "started": self.step = "booted"
             elif self.step == "booted": self.step = ""
 
+        self.show_current_state()
         print(f"manage_internal_state_end: {self.step}")
 
     def build_process(self, process):
