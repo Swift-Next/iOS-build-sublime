@@ -149,7 +149,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         for line in lines:
             if "TARGET_BUILD_DIR" in line:
                 self.target_build_dir = line.split('=')[1].strip()
-            elif "EXECUTABLE_FOLDER_PATH" in line:
+            elif "EXECUTABLE_FOLDER_PATH " in line:
                 self.executable_folder_path = line.split('=')[1].strip()
 
             # If both paths are found, no need to continue parsing
