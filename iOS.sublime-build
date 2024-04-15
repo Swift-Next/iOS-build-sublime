@@ -1,18 +1,17 @@
 {
     "target": "swift_exec",
-    // "selector": "source.swift",
     "keyfiles": [
-        "*.xcodeproj",
-        "*.xcodeworkspace",
+        // "*.xcodeproj",
+        // "*.xcworkspace",
         // "*.swift",
         // "*.h",
         // "*.m",
         // "*.mm",
-        "*.plist",
+        // "*.plist",
         "Podfile",
     ],
-    // "file_regex": "^/([/\\s\\w\\-\\+\\.]+):(\\d+):(\\d+):\\s(?:error|warning|note):\\s(.*)", // plain format, could hangs ST on a bad project
-    "file_regex": "^(?:\\[[x!]\\]\\s+)?([/\\s\\w\\+\\-\\.]+):(\\d+):(\\d+):\\s+(.*)", // xcbeautify format errors and warnings
+    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain format, could hangs ST on a bad project
+    // "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(?:error|warning|note:\\s.*)", // plain format, could hangs ST on a bad project
     "env": {
         "XPC_FLAGS": "0x0",
         "TOOLCHAINS": "swift",

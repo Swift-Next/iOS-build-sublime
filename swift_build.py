@@ -1,16 +1,18 @@
 import re
-from sublime import status_message
+from typing import Optional
+from sublime import status_message, View
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
 WARNING_PANE = "Warnings Pane"
+BUILD_PANE = "swift_exec"
 
 OPEN_PROJECT = "open {projct_path}"
 
 SIMCTL_LIST_CMD = "xcrun simctl list"
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
-BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build | xcbeautify --disable-colored-output --quieter"
-CLEAN_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
+BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build "
+CLEAN_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
 CLEAN_BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
@@ -18,9 +20,6 @@ BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -sh
 INSTALL_APP = "xcrun simctl install {device_uuid} {product_path}"
 RUN_APP = "xcrun simctl launch {with_debugger} --terminate-running-process {device_uuid} {bundle_id}"
 
-
-class SharedState:
-    instance = None
 
 class SwiftExecCommand(ExecCommand, ProcessListener):
     encoding = 'utf-8'
@@ -69,7 +68,15 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             command = BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
             print(command)
             self.show_current_state()
-            super().run( shell_cmd=command, **kwargs)
+            build_pane = self.get_build_pane()
+            build_pane.set_read_only(False)
+            build_pane.run_command('select_all')  # Select all existing content
+            build_pane.run_command('right_delete')  # Delete selected content
+            build_pane.set_read_only(True)
+
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+            process.start()
+
         elif self.mode == "clean":
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             command = CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
@@ -84,11 +91,24 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             process.start()
 
     def on_data(self, process, data):
+        # print("step * mode", self.step, self.mode)
         if self.mode == "toggle_simulator":
             self.process_simctl_devices(data)
 
-        elif self.mode == "build_and_run" and (self.step == "" or self.step == "spawned"):
-            super().on_data(process, data)
+        elif self.mode == "build_and_run" and self.step == "":
+            build_pane = self.get_build_pane()
+            build_pane.settings().set("result_file_regex", self.file_regex)
+            # build_pane.settings().set("result_line_regex", self.line_regex)
+            # build_pane.settings().set("result_base_dir", working_dir)
+            build_pane.settings().set("word_wrap", False)
+            build_pane.settings().set("line_numbers", True)
+            build_pane.settings().set("gutter", False)
+            build_pane.settings().set("word_wrap", True)
+            build_pane.settings().set("scroll_past_end", False)
+
+            build_pane.set_read_only(False)
+            build_pane.run_command('append', {'characters': data})  # Append the formatted errors
+            build_pane.set_read_only(True)
 
         elif self.mode == "build_and_run" and self.step == "built":
             self.process_xcode_settings(data)
@@ -100,6 +120,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "clean_build":
             super().on_data(process, data)
 
+
+    def get_build_pane(self) -> View:
+        return self.window.find_output_panel(BUILD_PANE) or self.window.create_output_panel(BUILD_PANE)
 
     def on_finished(self, process):
         self.build_process(process=process)
@@ -210,13 +233,12 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
 
-            if self.step == "obtained_product_path":
+            elif self.step == "obtained_product_path":
                 ## on obtained product path obtaining the devices list
                 command = SIMCTL_LIST_CMD
                 print(command)
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
-                print("xcrun_simcl started")
 
             elif self.step == "obrained_devices":
                 ## on both devices list and product path obtained user should pick a device to run
@@ -242,18 +264,21 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         print(f"on_finished_end: {self.step}")
 
     def present_warnings_and_errors_panel(self):
-        output_view = self.window.find_output_panel("exec")
-        if output_view is None: return
-
-        errors_struct = self.output_view.find_all_results_with_text()
+        errors_struct = self.get_build_pane().find_all_results_with_text()
         print("errors_struct",len(errors_struct))
         formatted_errors = []
         for file, line, column, text in errors_struct:
-            formatted_error = f"[!]  {file}:{line}:{column}: {text}"
+            formatted_error = f"{file}:{line}:{column}: {text}"
             formatted_errors.append(formatted_error)
 
+        warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
+        warning_pane.set_read_only(False)
+        warning_pane.run_command('select_all')  # Select all existing content
+        warning_pane.run_command('right_delete')
+        warning_pane.set_read_only(True)
+
+
         if len(formatted_errors) > 0:
-            warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
             warning_pane.settings().set("result_file_regex", self.file_regex)
             warning_pane.settings().set("result_line_regex", self.line_regex)
             # warning_pane.settings().set("result_base_dir", working_dir)
@@ -264,9 +289,11 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             # self.warning_pane.assign_syntax(self.syntax)
 
             warning_pane.set_read_only(False)
-            warning_pane.run_command('select_all')  # Select all existing content
-            warning_pane.run_command('right_delete')  # Delete selected content
             warning_pane.run_command('append', {'characters': "\n".join(formatted_errors)})  # Append the formatted errors
             warning_pane.set_read_only(True)
 
             self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
+
+
+class SharedState:
+    instance: Optional[SwiftExecCommand] = None
