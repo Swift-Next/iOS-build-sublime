@@ -11,9 +11,11 @@ OPEN_PROJECT = "open {projct_path}"
 SIMCTL_LIST_CMD = "xcrun simctl list"
 SIMCTL_BOOT_DEVICE_CMD = "xcrun simctl boot {device_uuid}"
 
-BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' build "
+REMOVE_BUNDLE_CMD = "rm -rf /tmp/{project_name}/bundle;"
+
+BUILD_CMD = "xcodebuild -quiet -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' -resultBundlePath /tmp/{project_name}/bundle build"
 CLEAN_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean"
-CLEAN_BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build | xcbeautify --disable-colored-output"
+CLEAN_BUILD_CMD = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -destination 'generic/platform=iOS Simulator' clean build"
 
 BUILT_SETTINGS = "xcodebuild -{project_kind} {project_name} -scheme {scheme} -showBuildSettings"
 
@@ -65,7 +67,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             print('started')
             self.step = ""
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-            command = BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            command = REMOVE_BUNDLE_CMD.format(project_name=self.projectfile_name)
+            command += BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
             print(command)
             self.show_current_state()
             build_pane = self.get_build_pane()
@@ -100,9 +103,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             build_pane.settings().set("result_file_regex", self.file_regex)
             # build_pane.settings().set("result_line_regex", self.line_regex)
             # build_pane.settings().set("result_base_dir", working_dir)
-            build_pane.settings().set("word_wrap", False)
+            build_pane.settings().set("word_wrap", True)
             build_pane.settings().set("line_numbers", True)
-            build_pane.settings().set("gutter", False)
+            build_pane.settings().set("gutter", True)
             build_pane.settings().set("word_wrap", True)
             build_pane.settings().set("scroll_past_end", False)
 
@@ -282,9 +285,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             warning_pane.settings().set("result_file_regex", self.file_regex)
             warning_pane.settings().set("result_line_regex", self.line_regex)
             # warning_pane.settings().set("result_base_dir", working_dir)
-            warning_pane.settings().set("word_wrap", False)
+            warning_pane.settings().set("word_wrap", True)
             warning_pane.settings().set("line_numbers", True)
-            warning_pane.settings().set("gutter", False)
+            warning_pane.settings().set("gutter", True)
             warning_pane.settings().set("scroll_past_end", False)
             # self.warning_pane.assign_syntax(self.syntax)
 

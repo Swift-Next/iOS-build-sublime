@@ -34,9 +34,6 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         print("on_done")
         self.return_uuid(selected_uuid)
 
-        # cmd = f"xcrun simctl install {selected_uuid} /Users/yar/Library/Developer/Xcode/DerivedData/AppClose-brevdtkvkmeibkbvojjivinndsjo/Build/Products/Debug-iphonesimulator/AppClose.app"
-        # self.window.run_command('exec', {'shell_cmd': cmd})
-
     def return_uuid(self, selected_uuid):
         from .swift_build import SharedState, SwiftExecCommand # https://stackoverflow.com/a/52927102
         SharedState.instance.handle_booted_device_uuid(selected_uuid)
