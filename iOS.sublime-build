@@ -1,0 +1,59 @@
+{
+    "target": "swift_exec",
+    "keyfiles": [
+        // "*.xcodeproj",
+        // "*.xcworkspace",
+        // "*.swift",
+        // "*.h",
+        // "*.m",
+        // "*.mm",
+        // "*.plist",
+        "Podfile",
+    ],
+    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain format, could hangs ST on a bad project
+    // "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(?:error|warning|note:\\s.*)", // plain format, could hangs ST on a bad project
+    "env": {
+        "XPC_FLAGS": "0x0",
+        "TOOLCHAINS": "swift",
+        "cwd": "$folder",
+    },
+    "cancel": {
+        "kill": true,
+        "kill_previous": true
+    },
+    // "quiet": true,
+    "working_dir": "$folder",
+
+    // "projectfile_name": "YourApp.xcworkspace",
+    // "scheme": "AppScheme",
+    // "bundle": "com.yourapp.yourapp",
+
+    "variants": [
+        {
+            "name": "Toggle Simulator",
+            "mode": "toggle_simulator"
+        },
+        {
+            "name": "Build & Run",
+            "mode": "build_and_run"
+        },
+        {
+            "name": "Build & Run with Debugger",
+            "mode": "build_and_run",
+            "debugger": true
+        },
+        {
+            "name": "Run",
+            "mode": "build_and_run",
+            "step": "installed"
+        },
+        {
+            "name": "Clean",
+            "mode": "clean"
+        },
+        {
+            "name": "Open in Xcode",
+            "mode": "open_project"
+        }
+    ]
+}
