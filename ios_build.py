@@ -1,6 +1,9 @@
+import os
 import re
+from signal import Signals
 from typing import Optional
-from sublime import status_message, View
+from sublime import status_message, View, QueryOperator
+from sublime_plugin import WindowCommand, EventListener
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
 WARNING_PANE = "Warnings Pane"
@@ -23,7 +26,7 @@ INSTALL_APP = "xcrun simctl install {device_uuid} {product_path}"
 RUN_APP = "xcrun simctl launch {with_debugger} --terminate-running-process {device_uuid} {bundle_id}"
 
 
-class SwiftExecCommand(ExecCommand, ProcessListener):
+class IosExecCommand(ExecCommand, ProcessListener):
     encoding = 'utf-8'
     in_ios_section = False
     ios_version = ''
@@ -40,9 +43,11 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     syntax = 'Packages/Text/Plain text.tmLanguage'
     target_build_dir = None
     executable_folder_path = None
+    current_process = None  # Hold reference to the current running process
 
     def run(self, **kwargs):
         SharedState.instance = self
+        self.cancel()
 
         self.step = kwargs.pop("step", "")
         self.env = kwargs.get("env", {})
@@ -62,6 +67,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             command = SIMCTL_LIST_CMD
             print(command)
             process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+            self.current_process = process
             process.start()
         elif self.mode == "build_and_run":
             print('started')
@@ -78,6 +84,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             build_pane.set_read_only(True)
 
             process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+            self.current_process = process
             process.start()
 
         elif self.mode == "clean":
@@ -91,6 +98,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             command = OPEN_PROJECT.format(projct_path=full_project_path)
             print(command)
             process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=None, shell=False)
+            self.current_process = process
             process.start()
 
     def on_data(self, process, data):
@@ -123,12 +131,31 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "clean_build" or self.mode == "clean":
             super().on_data(process, data)
 
-
     def get_build_pane(self) -> View:
         return self.window.find_output_panel(BUILD_PANE) or self.window.create_output_panel(BUILD_PANE)
 
     def on_finished(self, process):
         self.build_process(process=process)
+        if self.step == "spawned" or self.step == "booted":
+            self.current_process = None
+
+    def cancel(self):
+        print("cancel")
+        if self.current_process:
+            print("if self.current_process:",self.current_process)
+            if not self.current_process.killed:
+                print("if not self.current_process.killed::")
+                self.current_process.killed = True
+
+                print("self.current_process.proc.pid", self.current_process.proc.pid)
+                os.killpg(os.getpgid(self.current_process.proc.pid), Signals.SIGTERM)
+                self.current_process = None
+                self.step = "canceled"
+                build_pane = self.get_build_pane()
+                build_pane.set_read_only(False)
+                build_pane.run_command('append', {'characters': "[Canceled]"})  # Append the formatted errors
+                build_pane.set_read_only(True)
+
 
     def handle_booted_device_uuid(self, uuid):
         self.picked_device_uuid = uuid
@@ -191,7 +218,10 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
     def show_current_state(self):
         if self.mode == "build_and_run":
-            if self.step == "": self.window.active_view().set_status("swift_build_status", "Building...")
+            if self.step == "canceled":
+                self.window.active_view().set_status("swift_build_status", "")
+                status_message("Build canceled.")
+            elif self.step == "": self.window.active_view().set_status("swift_build_status", "Building...")
             elif self.step == "built": self.window.active_view().set_status("swift_build_status", "Obtaining Product Path...")
             elif self.step == "obtained_product_path": self.window.active_view().set_status("swift_build_status", "Obraining Devices...")
             elif self.step == "obrained_devices": self.window.active_view().set_status("swift_build_status", "Picking Devices...")
@@ -202,7 +232,8 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
     def manage_build_internal_state(self):
         print(f"manage_internal_state_begin: {self.step}")
         if self.mode == "build_and_run":
-            if self.step == "": self.step = "built"
+            if self.step == "canceled": pass
+            elif self.step == "": self.step = "built"
             elif self.step == "built": self.step = "obtained_product_path"
             elif self.step == "obtained_product_path": self.step = "obrained_devices"
             elif self.step == "obrained_devices": self.step = "device_picked"
@@ -299,4 +330,9 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
 
 
 class SharedState:
-    instance: Optional[SwiftExecCommand] = None
+    instance: Optional[IosExecCommand] = None
+
+class IosBuildCancelCommand(WindowCommand):
+    def run(self):
+        if SharedState.instance:
+            SharedState.instance.cancel()

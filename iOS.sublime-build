@@ -1,5 +1,5 @@
 {
-    "target": "swift_exec",
+    "target": "ios_exec",
     "keyfiles": [
         // "*.xcodeproj",
         // "*.xcworkspace",

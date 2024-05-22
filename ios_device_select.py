@@ -35,5 +35,5 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         self.return_uuid(selected_uuid)
 
     def return_uuid(self, selected_uuid):
-        from .swift_build import SharedState, SwiftExecCommand # https://stackoverflow.com/a/52927102
+        from .ios_build import SharedState, IosExecCommand # https://stackoverflow.com/a/52927102
         SharedState.instance.handle_booted_device_uuid(selected_uuid)
