@@ -10,8 +10,7 @@
         // "*.plist",
         "Podfile",
     ],
-    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(error:.*)", // plain format, could hangs ST on a bad project
-    // "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain format, could hangs ST on a bad project
+    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain xcodebuild build output format
     "env": {
         "XPC_FLAGS": "0x0",
         // "TOOLCHAINS": "swift",
