@@ -12,8 +12,6 @@
     ],
     "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain xcodebuild build output format
     "env": {
-        "XPC_FLAGS": "0x0",
-        // "TOOLCHAINS": "swift",
         "cwd": "$folder",
     },
     "cancel": {
