@@ -4,7 +4,7 @@ from sublime import status_message, View
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 
 WARNING_PANE = "Warnings Pane"
-BUILD_PANE = "swift_exec"
+BUILD_PANE = "exec"
 
 OPEN_PROJECT = "open {projct_path}"
 
@@ -84,7 +84,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
             command = CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
             status_message("Cleaning.")
-            super().run( shell_cmd=command, **kwargs)
+            super().run(shell_cmd=command, **kwargs)
 
         elif self.mode == "open_project":
             full_project_path = f'{self.working_dir}/{self.projectfile_name}'
@@ -120,7 +120,7 @@ class SwiftExecCommand(ExecCommand, ProcessListener):
             self.process_simctl_devices(data)
             print(self.devices)
 
-        elif self.mode == "clean_build":
+        elif self.mode == "clean_build" or self.mode == "clean":
             super().on_data(process, data)
 
 

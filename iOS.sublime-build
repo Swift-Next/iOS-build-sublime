@@ -10,11 +10,11 @@
         // "*.plist",
         "Podfile",
     ],
-    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain format, could hangs ST on a bad project
-    // "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(?:error|warning|note:\\s.*)", // plain format, could hangs ST on a bad project
+    "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(error:.*)", // plain format, could hangs ST on a bad project
+    // "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain format, could hangs ST on a bad project
     "env": {
         "XPC_FLAGS": "0x0",
-        "TOOLCHAINS": "swift",
+        // "TOOLCHAINS": "swift",
         "cwd": "$folder",
     },
     "cancel": {
