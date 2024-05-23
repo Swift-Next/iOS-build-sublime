@@ -2,7 +2,7 @@
     {
         "keys": ["ctrl+c"], "command": "ios_build_cancel",
         "context": [
-            { "key": "ios_exec_command_running", "operator": "equal", "operand": true }
+            { "key": "ios_exec_command_running" }
         ]
     },
 ]

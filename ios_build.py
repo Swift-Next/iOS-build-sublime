@@ -5,6 +5,7 @@ from typing import Optional
 from sublime import status_message, View, QueryOperator
 from sublime_plugin import WindowCommand, EventListener
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+import time
 
 WARNING_PANE = "Warnings Pane"
 BUILD_PANE = "exec"
@@ -61,6 +62,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.working_dir = kwargs.get('working_dir', None)
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
+        self.start_time = time.time()
 
         if self.mode == "toggle_simulator":
             if self.step == "Booted": self.step = ""
@@ -138,6 +140,24 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.build_process(process=process)
         if self.step == "spawned" or self.step == "booted":
             self.current_process = None
+        elif self.step == "built":
+            exit_code = process.exit_code()
+            elapsed = time.time() - self.start_time
+            if elapsed < 1:
+                elapsed_str = "%.0fms" % (elapsed * 1000)
+            else:
+                elapsed_str = "%.1fs" % (elapsed)
+            build_pane = self.get_build_pane()
+            build_pane.set_read_only(False)
+            if exit_code == 0 or exit_code is None:
+                build_pane.run_command('append', {'characters': "[Succeeded in %s]" % elapsed_str})
+            else:
+                build_pane.run_command('append', {'characters': "[Failed in %s with exit code %d]" %
+                           (elapsed_str, exit_code)})
+                # build_pane.run_command(self.debug_text)
+                self.step = "failed"
+                self.current_process = None
+            build_pane.set_read_only(True)
 
     def cancel(self):
         print("cancel")
@@ -215,12 +235,14 @@ class IosExecCommand(ExecCommand, ProcessListener):
                     print("self.product_path", self.product_path)
                     break
 
-
     def show_current_state(self):
         if self.mode == "build_and_run":
             if self.step == "canceled":
                 self.window.active_view().set_status("swift_build_status", "")
                 status_message("Build canceled.")
+            elif self.step == "failed":
+                self.window.active_view().set_status("swift_build_status", "")
+                status_message("Build failed.")
             elif self.step == "": self.window.active_view().set_status("swift_build_status", "Building...")
             elif self.step == "built": self.window.active_view().set_status("swift_build_status", "Obtaining Product Path...")
             elif self.step == "obtained_product_path": self.window.active_view().set_status("swift_build_status", "Obraining Devices...")
@@ -232,7 +254,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
     def manage_build_internal_state(self):
         print(f"manage_internal_state_begin: {self.step}")
         if self.mode == "build_and_run":
-            if self.step == "canceled": pass
+            if self.step == "canceled" or self.step == "failed": pass
             elif self.step == "": self.step = "built"
             elif self.step == "built": self.step = "obtained_product_path"
             elif self.step == "obtained_product_path": self.step = "obrained_devices"
