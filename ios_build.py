@@ -2,13 +2,14 @@ import os
 import re
 from signal import Signals
 from typing import Optional
-from sublime import status_message, View, QueryOperator
-from sublime_plugin import WindowCommand, EventListener
+from sublime import status_message
+from sublime_plugin import WindowCommand
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+from .build_log_processor import LogProcessor
 from .exceptions.ios_build_exception import IosBuildException, present_error
+from .panes_manager import PaneManager
 import time
 
-WARNING_PANE = "Warnings Pane"
 BUILD_PANE = "exec"
 
 OPEN_PROJECT = "open {projct_path}"
@@ -31,20 +32,20 @@ RUN_APP = "xcrun simctl launch {with_debugger} --terminate-running-process {devi
 class IosExecCommand(ExecCommand, ProcessListener):
     encoding = 'utf-8'
     in_ios_section = False
-    ios_version = ''
+    ios_version: str = ''
     devices = {}
-    step = ''
-    picked_device_uuid = ''
-    bundle = ''
-    product_path = ''
-    scheme = ''
-    projectfile_name = ''
-    mode = ''
-    file_regex = ''
-    line_regex = ''
+    step: str = ''
+    picked_device_uuid: str = ''
+    bundle: str = ''
+    product_path: str = ''
+    scheme: str = ''
+    projectfile_name: str = ''
+    mode: str = ''
+    file_regex: str = ''
+    line_regex: str = ''
     syntax = 'Packages/Text/Plain text.tmLanguage'
-    target_build_dir = None
-    executable_folder_path = None
+    target_build_dir: Optional[str] = None
+    executable_folder_path: Optional[str] = None
     current_process = None  # Hold reference to the current running process
 
     def run(self, **kwargs):
@@ -80,7 +81,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             command += BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
             print(command)
             self.show_current_state()
-            build_pane = self.get_build_pane()
+            build_pane = PaneManager.get_build_pane(window=self.window)
             build_pane.set_read_only(False)
             build_pane.run_command('select_all')  # Select all existing content
             build_pane.run_command('right_delete')  # Delete selected content
@@ -110,7 +111,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             self.process_simctl_devices(data)
 
         elif self.mode == "build_and_run" and self.step == "":
-            build_pane = self.get_build_pane()
+            build_pane = PaneManager.get_build_pane(window=self.window)
             build_pane.settings().set("result_file_regex", self.file_regex)
             # build_pane.settings().set("result_line_regex", self.line_regex)
             # build_pane.settings().set("result_base_dir", working_dir)
@@ -134,9 +135,6 @@ class IosExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "clean_build" or self.mode == "clean":
             super().on_data(process, data)
 
-    def get_build_pane(self) -> View:
-        return self.window.find_output_panel(BUILD_PANE) or self.window.create_output_panel(BUILD_PANE)
-
     def on_finished(self, process):
         self.build_process(process=process)
         if self.step == "spawned" or self.step == "booted":
@@ -148,7 +146,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 elapsed_str = "%.0fms" % (elapsed * 1000)
             else:
                 elapsed_str = "%.1fs" % (elapsed)
-            build_pane = self.get_build_pane()
+            build_pane = PaneManager.get_build_pane(window=self.window)
             build_pane.set_read_only(False)
             if exit_code == 0 or exit_code is None:
                 build_pane.run_command('append', {'characters': "[Succeeded in %s]" % elapsed_str})
@@ -172,7 +170,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 os.killpg(os.getpgid(self.current_process.proc.pid), Signals.SIGTERM)
                 self.current_process = None
                 self.step = "canceled"
-                build_pane = self.get_build_pane()
+                build_pane = PaneManager.get_build_pane(window=self.window)
                 build_pane.set_read_only(False)
                 build_pane.run_command('append', {'characters': "[Canceled]"})  # Append the formatted errors
                 build_pane.set_read_only(True)
@@ -182,6 +180,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         if len(uuid) == 0:
             error = IosBuildException("No simulator in a booted state.")
             present_error("iOS Build Error", error=error)
+            self.step = "failed"
             return
 
         self.picked_device_uuid = uuid
@@ -285,8 +284,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
         elif self.mode == "build_and_run":
             if self.step == "built":
-                ## present pane with warnings for convenience
-                self.present_warnings_and_errors_panel()
+                LogProcessor.present_warnings_and_errors_panel(window=self.window)
 
                 ## on built obtaining built product path
                 project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
@@ -324,38 +322,6 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 super().on_finished(process)
 
         print(f"on_finished_end: {self.step}")
-
-    def present_warnings_and_errors_panel(self):
-        errors_struct = self.get_build_pane().find_all_results_with_text()
-        print("errors_struct",len(errors_struct))
-        formatted_errors = []
-        for file, line, column, text in errors_struct:
-            formatted_error = f"{file}:{line}:{column}: {text}"
-            formatted_errors.append(formatted_error)
-
-        warning_pane = self.window.find_output_panel(WARNING_PANE) or self.window.create_output_panel(WARNING_PANE)
-        warning_pane.set_read_only(False)
-        warning_pane.run_command('select_all')  # Select all existing content
-        warning_pane.run_command('right_delete')
-        warning_pane.set_read_only(True)
-
-
-        if len(formatted_errors) > 0:
-            warning_pane.settings().set("result_file_regex", self.file_regex)
-            warning_pane.settings().set("result_line_regex", self.line_regex)
-            # warning_pane.settings().set("result_base_dir", working_dir)
-            warning_pane.settings().set("word_wrap", True)
-            warning_pane.settings().set("line_numbers", True)
-            warning_pane.settings().set("gutter", True)
-            warning_pane.settings().set("scroll_past_end", False)
-            # self.warning_pane.assign_syntax(self.syntax)
-
-            warning_pane.set_read_only(False)
-            warning_pane.run_command('append', {'characters': "\n".join(formatted_errors)})  # Append the formatted errors
-            warning_pane.set_read_only(True)
-
-            self.window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
-
 
 class SharedState:
     instance: Optional[IosExecCommand] = None
