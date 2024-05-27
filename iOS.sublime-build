@@ -1,13 +1,8 @@
 {
     "target": "ios_exec",
     "keyfiles": [
-        // "*.xcodeproj",
-        // "*.xcworkspace",
-        // "*.swift",
-        // "*.h",
-        // "*.m",
-        // "*.mm",
-        // "*.plist",
+        ".iOS-sublime-build",
+        "Info.plist",
         "Podfile",
     ],
     "file_regex": "^(?=/)([^:]+):(\\d+):(\\d+):\\s(.*)", // plain xcodebuild build output format
@@ -18,7 +13,6 @@
         "kill": true,
         "kill_previous": true
     },
-    // "quiet": true,
     "working_dir": "$folder",
 
     // "projectfile_name": "YourApp.xcworkspace",
