@@ -5,6 +5,7 @@ from typing import Optional
 from sublime import status_message, View, QueryOperator
 from sublime_plugin import WindowCommand, EventListener
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+from .exceptions.ios_build_exception import IosBuildException, present_error
 import time
 
 WARNING_PANE = "Warnings Pane"
@@ -177,7 +178,12 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 build_pane.set_read_only(True)
 
 
-    def handle_booted_device_uuid(self, uuid):
+    def handle_booted_device_uuid(self, uuid: str):
+        if len(uuid) == 0:
+            error = IosBuildException("No simulator in a booted state.")
+            present_error("iOS Build Error", error=error)
+            return
+
         self.picked_device_uuid = uuid
         if self.mode == "build_and_run": self.build_process(process=None)
         else: # if "toggle_simulator"

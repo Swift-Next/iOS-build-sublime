@@ -17,6 +17,9 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
             selected_uuid = self.items[0][0]  # This is the UUID of the selected item
             self.return_uuid(selected_uuid=selected_uuid)
             return
+        elif len(self.items) == 0:
+            self.return_uuid(selected_uuid="")
+            return
 
         print("RunAppOnIosDevicesSelectCommand 2")
         # Create a list of tuples where each tuple is (UUID, formatted string)
