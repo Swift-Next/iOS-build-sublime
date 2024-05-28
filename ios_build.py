@@ -2,6 +2,7 @@ import os
 import re
 from signal import Signals
 from typing import Optional
+from status_manager import StatusbarManager
 from sublime import status_message
 from sublime_plugin import WindowCommand
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
@@ -49,7 +50,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
         self.start_time = time.time()
-        self.command_builder = XcodebuildCommandBuilder(project_filename=self.projectfile_name, scheme=self.scheme)
+        self.xcodebuild_command_builder = XcodebuildCommandBuilder(project_filename=self.projectfile_name, scheme=self.scheme)
 
         if self.mode == "toggle_simulator":
             if self.step == "Booted": self.step = ""
@@ -64,7 +65,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
             PaneManager.clear_build_pane(window=self.window)
 
-            command = (self.command_builder
+            command = (self.xcodebuild_command_builder
                 .manage_bundle()
                 .quiet()
                 .target_setup()
@@ -79,7 +80,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             self.show_current_state()
 
         elif self.mode == "clean":
-            command = (self.command_builder
+            command = (self.xcodebuild_command_builder
                 .target_setup()
                 .destination_setup()
                 .clean()
@@ -102,15 +103,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             self.process_simctl_devices(data)
 
         elif self.mode == "build_and_run" and self.step == "":
-            build_pane = PaneManager.get_build_pane(window=self.window)
-            build_pane.settings().set("result_file_regex", self.file_regex)
-            # build_pane.settings().set("result_line_regex", self.line_regex)
-            # build_pane.settings().set("result_base_dir", working_dir)
-            build_pane.settings().set("word_wrap", True)
-            build_pane.settings().set("line_numbers", True)
-            build_pane.settings().set("gutter", True)
-            build_pane.settings().set("word_wrap", True)
-            build_pane.settings().set("scroll_past_end", False)
+            build_pane = PaneManager.get_build_pane(window=self.window, file_regex=self.file_regex)
 
             build_pane.set_read_only(False)
             build_pane.run_command('append', {'characters': data})  # Append the formatted errors
@@ -233,19 +226,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
     def show_current_state(self):
         if self.mode == "build_and_run":
-            if self.step == "canceled":
-                self.window.active_view().set_status("swift_build_status", "")
-                status_message("Build canceled.")
-            elif self.step == "failed":
-                self.window.active_view().set_status("swift_build_status", "")
-                status_message("Build failed.")
-            elif self.step == "": self.window.active_view().set_status("swift_build_status", "Building...")
-            elif self.step == "built": self.window.active_view().set_status("swift_build_status", "Obtaining Product Path...")
-            elif self.step == "obtained_product_path": self.window.active_view().set_status("swift_build_status", "Obraining Devices...")
-            elif self.step == "obrained_devices": self.window.active_view().set_status("swift_build_status", "Picking Devices...")
-            elif self.step == "device_picked": self.window.active_view().set_status("swift_build_status", "App Installation...")
-            elif self.step == "installed": self.window.active_view().set_status("swift_build_status", "App Spawning...")
-            elif self.step == "spawned": self.window.active_view().set_status("swift_build_status", "")
+            StatusbarManager.show_status(view=self.window.active_view(), step=self.step)
 
     def manage_build_internal_state(self):
         print(f"manage_internal_state_begin: {self.step}")
@@ -277,7 +258,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             if self.step == "built":
                 LogProcessor.present_warnings_and_errors_panel(window=self.window)
 
-                command = (self.command_builder
+                command = (self.xcodebuild_command_builder
                     .target_setup()
                     .build_settings()
                     .assemble_command()

@@ -3,7 +3,18 @@ from .constants import BUILD_PANE, WARNING_PANE
 
 class PaneManager:
     @staticmethod
-    def get_build_pane(window: Window) -> View:
+    def create_output_panel(window: Window, name: str, file_regex: str) -> View:
+        build_pane = window.create_output_panel(BUILD_PANE)
+        build_pane.settings().set("result_file_regex", file_regex)
+        build_pane.settings().set("word_wrap", True)
+        build_pane.settings().set("line_numbers", True)
+        build_pane.settings().set("gutter", True)
+        build_pane.settings().set("word_wrap", True)
+        build_pane.settings().set("scroll_past_end", False)
+        return build_pane
+
+    @staticmethod
+    def get_build_pane(window: Window, file_regex: str = '') -> View:
         return window.find_output_panel(BUILD_PANE) or window.create_output_panel(BUILD_PANE)
 
     @staticmethod
