@@ -63,7 +63,7 @@ class LogProcessor:
             warning_pane.settings().set("line_numbers", True)
             warning_pane.settings().set("gutter", True)
             warning_pane.settings().set("scroll_past_end", False)
-            # self.warning_pane.assign_syntax(self.syntax)
+            warning_pane.assign_syntax("iOS-build-log.sublime-syntax")
             for file in sorted_errors_by_file:
                 warning_pane.run_command('append', {'characters': file, 'force': True})
                 warning_pane.run_command('append', {'characters': "\n", 'force': True})
