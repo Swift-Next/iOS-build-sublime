@@ -13,3 +13,11 @@ class PaneManager:
     @staticmethod
     def show_warining_pane(window: Window):
         window.run_command("show_panel", {"panel": f"output.{WARNING_PANE}"})
+
+    @staticmethod
+    def clear_build_pane(window: Window):
+        build_pane = PaneManager.get_build_pane(window=window)
+        build_pane.set_read_only(False)
+        build_pane.run_command('select_all')
+        build_pane.run_command('right_delete')
+        build_pane.set_read_only(True)

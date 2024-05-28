@@ -8,7 +8,8 @@ from Default.exec import ExecCommand, ProcessListener, AsyncProcess
 from .build_log_processor import LogProcessor
 from .exceptions.ios_build_exception import IosBuildException, present_error
 from .panes_manager import PaneManager
-from .constants import OPEN_PROJECT, SIMCTL_LIST_CMD, SIMCTL_BOOT_DEVICE_CMD, REMOVE_BUNDLE_CMD, BUILD_CMD, CLEAN_CMD, BUILT_SETTINGS, INSTALL_APP, RUN_APP
+from .constants import OPEN_PROJECT, SIMCTL_LIST_CMD, SIMCTL_BOOT_DEVICE_CMD, INSTALL_APP, RUN_APP
+from .build_command_builder import XcodebuildCommandBuilder
 import time
 
 
@@ -48,6 +49,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
         self.start_time = time.time()
+        self.command_builder = XcodebuildCommandBuilder(project_filename=self.projectfile_name, scheme=self.scheme)
 
         if self.mode == "toggle_simulator":
             if self.step == "Booted": self.step = ""
@@ -59,24 +61,30 @@ class IosExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "build_and_run":
             print('started')
             self.step = ""
-            project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-            command = REMOVE_BUNDLE_CMD.format(project_name=self.projectfile_name)
-            command += BUILD_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
-            print(command)
-            self.show_current_state()
-            build_pane = PaneManager.get_build_pane(window=self.window)
-            build_pane.set_read_only(False)
-            build_pane.run_command('select_all')  # Select all existing content
-            build_pane.run_command('right_delete')  # Delete selected content
-            build_pane.set_read_only(True)
 
+            PaneManager.clear_build_pane(window=self.window)
+
+            command = (self.command_builder
+                .manage_bundle()
+                .quiet()
+                .target_setup()
+                .destination_setup()
+                .build()
+                .assemble_command()
+            )
+            print(command)
             process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
             self.current_process = process
             process.start()
+            self.show_current_state()
 
         elif self.mode == "clean":
-            project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-            command = CLEAN_CMD.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+            command = (self.command_builder
+                .target_setup()
+                .destination_setup()
+                .clean()
+                .assemble_command()
+            )
             status_message("Cleaning.")
             super().run(shell_cmd=command, **kwargs)
 
@@ -269,9 +277,11 @@ class IosExecCommand(ExecCommand, ProcessListener):
             if self.step == "built":
                 LogProcessor.present_warnings_and_errors_panel(window=self.window)
 
-                ## on built obtaining built product path
-                project_kind = 'workspace' if self.projectfile_name.split('.')[1] == "xcworkspace" else "project"
-                command = BUILT_SETTINGS.format(project_kind=project_kind, project_name=self.projectfile_name, scheme=self.scheme)
+                command = (self.command_builder
+                    .target_setup()
+                    .build_settings()
+                    .assemble_command()
+                )
                 print(command)
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()

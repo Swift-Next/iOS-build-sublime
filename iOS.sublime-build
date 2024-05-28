@@ -15,7 +15,7 @@
     },
     "working_dir": "$folder",
 
-    // "projectfile_name": "YourApp.xcworkspace",
+    // "project_filename": "YourApp.xcworkspace",
     // "scheme": "AppScheme",
     // "bundle": "com.yourapp.yourapp",
 
