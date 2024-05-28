@@ -1,11 +1,12 @@
 import os
 import re
 from signal import Signals
-from typing import Optional
-from status_manager import StatusbarManager
+from typing import Dict, Optional
 from sublime import status_message
 from sublime_plugin import WindowCommand
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+from .xcodebuild_output_parser import XcodebuildOutputParser
+from .status_manager import StatusbarManager
 from .build_log_processor import LogProcessor
 from .exceptions.ios_build_exception import IosBuildException, present_error
 from .panes_manager import PaneManager
@@ -18,11 +19,11 @@ class IosExecCommand(ExecCommand, ProcessListener):
     encoding = 'utf-8'
     in_ios_section = False
     ios_version: str = ''
-    devices = {}
+    devices: Dict[str, str] = {}
     step: str = ''
     picked_device_uuid: str = ''
     bundle: str = ''
-    product_path: str = ''
+    product_path: Optional[str] = None
     scheme: str = ''
     projectfile_name: str = ''
     mode: str = ''
@@ -51,6 +52,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.syntax = kwargs.get('syntax', None)
         self.start_time = time.time()
         self.xcodebuild_command_builder = XcodebuildCommandBuilder(project_filename=self.projectfile_name, scheme=self.scheme)
+        self.xcodebuld_output_parser = XcodebuildOutputParser()
 
         if self.mode == "toggle_simulator":
             if self.step == "Booted": self.step = ""
@@ -86,7 +88,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 .clean()
                 .assemble_command()
             )
-            status_message("Cleaning.")
+            status_message("Cleaning...")
             super().run(shell_cmd=command, **kwargs)
 
         elif self.mode == "open_project":
@@ -100,7 +102,8 @@ class IosExecCommand(ExecCommand, ProcessListener):
     def on_data(self, process, data):
         # print("step * mode", self.step, self.mode)
         if self.mode == "toggle_simulator":
-            self.process_simctl_devices(data)
+            devices = self.xcodebuld_output_parser.process_simctl_devices(data=data)
+            self.devices.update(devices)
 
         elif self.mode == "build_and_run" and self.step == "":
             build_pane = PaneManager.get_build_pane(window=self.window, file_regex=self.file_regex)
@@ -110,13 +113,14 @@ class IosExecCommand(ExecCommand, ProcessListener):
             build_pane.set_read_only(True)
 
         elif self.mode == "build_and_run" and self.step == "built":
-            self.process_xcode_settings(data)
+            self.product_path = self.xcodebuld_output_parser.process_xcode_settings(data=data)
 
         elif self.mode == "build_and_run" and self.step == "obtained_product_path":
-            self.process_simctl_devices(data)
+            devices = self.xcodebuld_output_parser.process_simctl_devices(data=data)
+            self.devices.update(devices)
             print(self.devices)
 
-        elif self.mode == "clean_build" or self.mode == "clean":
+        elif self.mode == "clean":
             super().on_data(process, data)
 
     def on_finished(self, process):
@@ -174,55 +178,6 @@ class IosExecCommand(ExecCommand, ProcessListener):
             print(command)
             process = AsyncProcess(cmd=None,shell_cmd=command, env=self.env, listener=self, shell=True)
             process.start()
-
-    def process_simctl_devices(self, data):
-        # print(f"process_simctl_devices(self, data):")
-        lines = data.split('\n')
-        for line in lines:
-            if '-- iOS' in line:
-                self.in_ios_section = True
-                pattern = r"iOS \d+\.\d+"
-                self.ios_version = re.search(pattern, line).group()  # Directly using the string since it's a known value
-            elif '--' in line:
-                self.in_ios_section = False
-
-            if self.in_ios_section and ('iPhone' in line or 'iPad' in line):
-                # print(f"line: {line}")
-                # Adjusted regex pattern to more accurately match your requirements
-                match = re.match(r'^\s+(iP\w+(?: \w+)? (?:Pro|Plus)?(?: Max)?.*)\(([\w\d]{8}-(?:[\w\d]{4}-){3}[\w\d]{12})\) \((Booted|Shutdown)\)', line)
-                # print(f"match {match}")
-                if match:
-                    device_name = match.group(1).strip()  # Full device name, including generation
-                    uuid = match.group(2)  # UUID, capturing if needed
-                    status = match.group(3)  # Status, e.g., "Shutdown"
-
-                    # Compose the string as per the required output format
-                    formatted_output = f"{self.ios_version}: {device_name} | {status}"
-                    self.devices[uuid] = {
-                        "ios_version": self.ios_version,
-                        "status": status,
-                        "devices_name": device_name,
-                        "formatted_output": formatted_output
-                    }
-
-    def process_xcode_settings(self, data):
-        print("process_xcode_settings(self, data):")
-        lines = data.split('\n')
-        for line in lines:
-            if "TARGET_BUILD_DIR" in line:
-                self.target_build_dir = line.split('=')[1].strip()
-            elif "EXECUTABLE_FOLDER_PATH " in line:
-                self.executable_folder_path = line.split('=')[1].strip()
-
-            # If both paths are found, no need to continue parsing
-            if self.target_build_dir and self.executable_folder_path:
-                target_substring = "Build/Products"
-                index = self.target_build_dir.rfind(target_substring)
-                if index != -1:
-                    cut_path = self.target_build_dir[:index]
-                    self.product_path = f"{cut_path}{target_substring}/Debug-iphonesimulator/{self.executable_folder_path}"
-                    print("self.product_path", self.product_path)
-                    break
 
     def show_current_state(self):
         if self.mode == "build_and_run":
