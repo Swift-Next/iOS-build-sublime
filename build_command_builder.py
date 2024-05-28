@@ -3,7 +3,7 @@ class XcodebuildCommandBuilder:
         self.project_name = project_filename
         self.scheme = scheme
         self.project_kind = 'workspace' if project_filename.split('.')[1] == "xcworkspace" else "project"
-        self.__command__ = 'xcodebuild'
+        self.__command__ = __INITIAL_COMMAND__
 
     def quiet(self) -> 'XcodebuildCommandBuilder':
         self.__command__ += ' ' + '-quiet'
@@ -35,4 +35,8 @@ class XcodebuildCommandBuilder:
         return self
 
     def assemble_command(self) -> str:
-        return self.__command__
+        command = self.__command__
+        self.__command__ = __INITIAL_COMMAND__
+        return command
+
+__INITIAL_COMMAND__ = 'xcodebuild'

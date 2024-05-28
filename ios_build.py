@@ -1,16 +1,16 @@
 import os
-import re
 from signal import Signals
 from typing import Dict, Optional
 from sublime import status_message
 from sublime_plugin import WindowCommand
 from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+from .simulator_manager_builder import SimulatorCommandBuilder
 from .xcodebuild_output_parser import XcodebuildOutputParser
 from .status_manager import StatusbarManager
 from .build_log_processor import LogProcessor
 from .exceptions.ios_build_exception import IosBuildException, present_error
 from .panes_manager import PaneManager
-from .constants import OPEN_PROJECT, SIMCTL_LIST_CMD, SIMCTL_BOOT_DEVICE_CMD, INSTALL_APP, RUN_APP
+from .constants import OPEN_PROJECT
 from .build_command_builder import XcodebuildCommandBuilder
 import time
 
@@ -23,7 +23,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
     step: str = ''
     picked_device_uuid: str = ''
     bundle: str = ''
-    product_path: Optional[str] = None
+    product_path: str = ''
     scheme: str = ''
     projectfile_name: str = ''
     mode: str = ''
@@ -32,11 +32,11 @@ class IosExecCommand(ExecCommand, ProcessListener):
     syntax = 'Packages/Text/Plain text.tmLanguage'
     target_build_dir: Optional[str] = None
     executable_folder_path: Optional[str] = None
+    with_debugger: bool = False
     current_process = None  # Hold reference to the current running process
 
     def run(self, **kwargs):
         SharedState.instance = self
-        self.cancel()
 
         self.step = kwargs.pop("step", "")
         self.env = kwargs.get("env", {})
@@ -53,10 +53,18 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.start_time = time.time()
         self.xcodebuild_command_builder = XcodebuildCommandBuilder(project_filename=self.projectfile_name, scheme=self.scheme)
         self.xcodebuld_output_parser = XcodebuildOutputParser()
+        self.simctl_command_builder = SimulatorCommandBuilder(bundle_id=self.bundle)
+        self.build_pane = PaneManager.get_build_pane(window=self.window)
+        self.build_pane.setup_with(self.file_regex)
+
+        self.cancel()
 
         if self.mode == "toggle_simulator":
             if self.step == "Booted": self.step = ""
-            command = SIMCTL_LIST_CMD
+            command = (self.simctl_command_builder
+                .list()
+                .assemble_command()
+            )
             print(command)
             process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
             self.current_process = process
@@ -106,14 +114,15 @@ class IosExecCommand(ExecCommand, ProcessListener):
             self.devices.update(devices)
 
         elif self.mode == "build_and_run" and self.step == "":
-            build_pane = PaneManager.get_build_pane(window=self.window, file_regex=self.file_regex)
+            build_pane = PaneManager.get_build_pane(window=self.window)
 
             build_pane.set_read_only(False)
             build_pane.run_command('append', {'characters': data})  # Append the formatted errors
             build_pane.set_read_only(True)
 
         elif self.mode == "build_and_run" and self.step == "built":
-            self.product_path = self.xcodebuld_output_parser.process_xcode_settings(data=data)
+            if self.xcodebuld_output_parser.process_xcode_settings(data=data):
+                self.product_path = self.xcodebuld_output_parser.process_xcode_settings(data=data)
 
         elif self.mode == "build_and_run" and self.step == "obtained_product_path":
             devices = self.xcodebuld_output_parser.process_simctl_devices(data=data)
@@ -158,7 +167,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 os.killpg(os.getpgid(self.current_process.proc.pid), Signals.SIGTERM)
                 self.current_process = None
                 self.step = "canceled"
-                build_pane = PaneManager.get_build_pane(window=self.window)
+                build_pane = PaneManager.get_build_pane(self.window)
                 build_pane.set_read_only(False)
                 build_pane.run_command('append', {'characters': "[Canceled]"})  # Append the formatted errors
                 build_pane.set_read_only(True)
@@ -174,7 +183,12 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.picked_device_uuid = uuid
         if self.mode == "build_and_run": self.build_process(process=None)
         else: # if "toggle_simulator"
-            command = SIMCTL_BOOT_DEVICE_CMD.format(device_uuid=uuid)
+            command = (self.simctl_command_builder
+                .boot()
+                .device_uuid(uuid)
+                .assemble_command()
+            )
+
             print(command)
             process = AsyncProcess(cmd=None,shell_cmd=command, env=self.env, listener=self, shell=True)
             process.start()
@@ -224,7 +238,10 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
             elif self.step == "obtained_product_path":
                 ## on obtained product path obtaining the devices list
-                command = SIMCTL_LIST_CMD
+                command = (self.simctl_command_builder
+                    .list()
+                    .assemble_command()
+                )
                 print(command)
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
@@ -235,14 +252,25 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
             elif self.step == "device_picked":
                 ## on device picked by a user fire install
-                command = INSTALL_APP.format(device_uuid=self.picked_device_uuid, product_path=self.product_path)
+                command = (self.simctl_command_builder
+                    .install()
+                    .device_uuid(self.picked_device_uuid)
+                    .product_path(self.product_path)
+                    .assemble_command()
+                )
+
                 print(command)
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()
             elif self.step == "installed":
-                ## on installation finish run app
-                with_debugger = "--wait-for-debugger" if self.with_debugger else ""
-                command = RUN_APP.format(with_debugger=with_debugger, device_uuid=self.picked_device_uuid, bundle_id=self.bundle)
+                command = (self.simctl_command_builder
+                    .launch()
+                    .wait_lldb(self.with_debugger)
+                    .terminate_previous()
+                    .device_uuid(self.picked_device_uuid)
+                    .bundle()
+                    .assemble_command()
+                )
                 print(command)
                 process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
                 process.start()

@@ -33,26 +33,27 @@ class XcodebuildOutputParser:
                     # Compose the string as per the required output format
                     formatted_output = f"{self.ios_version}: {device_name} | {status}"
                     devices[uuid] = {
-                        "ios_version": self.ios_version,
-                        "status": status,
-                        "devices_name": device_name,
-                        "formatted_output": formatted_output
+                        'ios_version': self.ios_version,
+                        'status': status,
+                        'devices_name': device_name,
+                        'formatted_output': formatted_output
                     }
         return devices
 
     def process_xcode_settings(self, data: str) -> Optional[str]:
-        print("process_xcode_settings(self, data):")
+        # print("process_xcode_settings(self, data):")
         lines = data.split('\n')
         for line in lines:
-            if "TARGET_BUILD_DIR" in line:
+            if 'TARGET_BUILD_DIR' in line:
                 self.target_build_dir = line.split('=')[1].strip()
-            elif "EXECUTABLE_FOLDER_PATH " in line:
+            elif 'EXECUTABLE_FOLDER_PATH ' in line:
                 self.executable_folder_path = line.split('=')[1].strip()
 
             # If both paths are found, no need to continue parsing
             if self.target_build_dir and self.executable_folder_path:
-                target_substring = "Build/Products"
+                target_substring = 'Build/Products'
                 index = self.target_build_dir.rfind(target_substring)
                 if index != -1:
                     cut_path = self.target_build_dir[:index]
-                    return f"{cut_path}{target_substring}/Debug-iphonesimulator/{self.executable_folder_path}"
+                    # print("target_build_dir:", f"{cut_path}{target_substring}/Debug-iphonesimulator/{self.executable_folder_path}")
+                    return f'{cut_path}{target_substring}/Debug-iphonesimulator/{self.executable_folder_path}'
