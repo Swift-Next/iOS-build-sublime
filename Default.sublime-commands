@@ -1,0 +1,6 @@
+[
+    {
+        "caption": "iOS build: Create dummy file in project root",
+        "command": "create_ios_sublime_build",
+    },
+]

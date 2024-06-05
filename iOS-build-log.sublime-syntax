@@ -1,0 +1,66 @@
+%YAML 1.2
+---
+name: iOS build log
+file_extensions: []
+scope: source.ios_build_log
+hidden: true
+
+contexts:
+  main:
+    # Match file paths and treat them as comments
+    - match: ^(?=/)(.*)
+      scope: comment.line
+
+    # Match line and column numbers
+    - match: '^ *(\d+):(\d+):'
+      captures:
+        1: constant.numeric.line
+        2: constant.numeric.column
+
+      # Proceed to error or warning detection next
+      push: detect_message
+
+  detect_message:
+    - match: 'error'
+      scope: entity.name.error invalid.illegal
+      push:
+        - meta_include_prototype: false
+        - match: $
+          pop: true
+        - match: .
+          scope: string
+    - match: 'warning'
+      scope: entity.name.warning
+      push:
+        - meta_include_prototype: false
+        - match: $
+          pop: true
+        - match: .
+          scope: string
+    - match: 'note'
+      scope: entity.name.note comment.block
+      push:
+        - meta_include_prototype: false
+        - match: $
+          pop: true
+        - match: .
+          scope: string
+    - match: $
+      pop: true
+
+
+# # Variables for colorization
+# variables:
+#   colors:
+#     redish: red
+#     yellowish: yellow
+#     greenish: green
+
+# # Color scheme rules
+# rules:
+#   - scope: entity.name.error
+#     color: $redish
+#   - scope: entity.name.warning
+#     color: $yellowish
+#   - scope: entity.name.note
+#     color: $greenish

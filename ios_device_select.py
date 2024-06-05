@@ -17,6 +17,9 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
             selected_uuid = self.items[0][0]  # This is the UUID of the selected item
             self.return_uuid(selected_uuid=selected_uuid)
             return
+        elif len(self.items) == 0:
+            self.return_uuid(selected_uuid="")
+            return
 
         print("RunAppOnIosDevicesSelectCommand 2")
         # Create a list of tuples where each tuple is (UUID, formatted string)
@@ -26,7 +29,7 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
 
     def on_done(self, picked):
         if picked == -1:
-            return
+            self.return_uuid("canceled")
         # Use the picked index to access the corresponding tuple in self.items
         selected_uuid = self.items[picked][0]  # This is the UUID of the selected item
         print(f"User selected: {selected_uuid}")
@@ -35,5 +38,5 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
         self.return_uuid(selected_uuid)
 
     def return_uuid(self, selected_uuid):
-        from .swift_build import SharedState, SwiftExecCommand # https://stackoverflow.com/a/52927102
+        from .ios_build import SharedState, IosExecCommand # https://stackoverflow.com/a/52927102
         SharedState.instance.handle_booted_device_uuid(selected_uuid)
