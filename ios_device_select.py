@@ -29,7 +29,7 @@ class RunAppOnIosDevicesSelectCommand(sublime_plugin.WindowCommand):
 
     def on_done(self, picked):
         if picked == -1:
-            return
+            self.return_uuid("canceled")
         # Use the picked index to access the corresponding tuple in self.items
         selected_uuid = self.items[picked][0]  # This is the UUID of the selected item
         print(f"User selected: {selected_uuid}")

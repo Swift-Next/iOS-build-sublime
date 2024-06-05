@@ -174,10 +174,13 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
 
     def handle_booted_device_uuid(self, uuid: str):
-        if len(uuid) == 0:
+        if not uuid:
             error = IosBuildException("No simulator in a booted state.")
             present_error("iOS Build Error", error=error)
             self.step = "failed"
+            return
+        if uuid == "canceled":
+            self.step = "canceled"
             return
 
         self.picked_device_uuid = uuid
