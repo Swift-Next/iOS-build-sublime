@@ -1,7 +1,7 @@
 # iOS build system for Sublime Text 4
 
 > [!NOTE] 
-> It's in a deep WIP state. So far only a few golden paths are working and yet working quite roughly.
+> It's in a deep WIP state. So far a few golden paths are working.
 
 
 ## Usage
