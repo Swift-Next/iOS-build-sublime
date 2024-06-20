@@ -1,9 +1,5 @@
 # iOS build system for Sublime Text 4
 
-> [!NOTE] 
-> It's in a deep WIP state. So far only a few golden paths are working and yet working quite roughly.
-
-
 ## Usage
 
 1. Sublime Text has a limitation in its internals to map a given build system to a scope of a project. If you're unable to find `iOS - *` build options on your `primary+shift+b` key press, you should run the given command: `iOS build: Create dummy file in project root` in command palette. It will creates a dummy file `.iOS-sublime-build` in the root of your project folder to force ST to add this build system to the project.

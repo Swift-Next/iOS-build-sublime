@@ -127,7 +127,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         elif self.mode == "build_and_run" and self.step == "obtained_product_path":
             devices = self.xcodebuld_output_parser.process_simctl_devices(data=data)
             self.devices.update(devices)
-            print(self.devices)
+            # print(self.devices)
 
         elif self.mode == "clean":
             super().on_data(process, data)
