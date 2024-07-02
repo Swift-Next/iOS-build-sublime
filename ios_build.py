@@ -3,7 +3,8 @@ from signal import Signals
 from typing import Dict, Optional
 from sublime import status_message
 from sublime_plugin import WindowCommand
-from Default.exec import ExecCommand, ProcessListener, AsyncProcess
+from Default.exec import ExecCommand, ProcessListener
+from .AsyncProcess import AsyncProcess
 from .simulator_manager_builder import SimulatorCommandBuilder
 from .xcodebuild_output_parser import XcodebuildOutputParser
 from .status_manager import StatusbarManager
@@ -47,7 +48,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
         self.scheme = self.window.active_view().settings().get('ios_build_system')['scheme']
         self.bundle = self.window.active_view().settings().get('ios_build_system')['bundle']
         self.file_regex = kwargs.get('file_regex', None)
-        self.working_dir = kwargs.get('working_dir', None)
+        self.working_dir: str = self.window.folders()[0] ## assuming that the project folder is first in the list
         self.line_regex = kwargs.get('line_regex', None)
         self.syntax = kwargs.get('syntax', None)
         self.start_time = time.time()
@@ -66,7 +67,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 .assemble_command()
             )
             print(command)
-            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
             self.current_process = process
             process.start()
         elif self.mode == "build_and_run":
@@ -84,7 +85,10 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 .assemble_command()
             )
             print(command)
-            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+            print(os.getcwd())
+            print(self.env)
+            print(self.working_dir)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
             self.current_process = process
             process.start()
             self.show_current_state()
@@ -103,7 +107,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             full_project_path = f'{self.working_dir}/{self.projectfile_name}'
             command = OPEN_PROJECT.format(projct_path=full_project_path)
             print(command)
-            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=None, shell=False)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
             self.current_process = process
             process.start()
 
@@ -125,6 +129,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 self.product_path = self.xcodebuld_output_parser.process_xcode_settings(data=data)
 
         elif self.mode == "build_and_run" and self.step == "obtained_product_path":
+            print("xxx")
             devices = self.xcodebuld_output_parser.process_simctl_devices(data=data)
             self.devices.update(devices)
             # print(self.devices)
@@ -175,6 +180,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
 
     def handle_booted_device_uuid(self, uuid: str):
         if not uuid:
+            print("sdf")
             error = IosBuildException("No simulator in a booted state.")
             present_error("iOS Build Error", error=error)
             self.step = "failed"
@@ -193,7 +199,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
             )
 
             print(command)
-            process = AsyncProcess(cmd=None,shell_cmd=command, env=self.env, listener=self, shell=True)
+            process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
             process.start()
 
     def show_current_state(self):
@@ -236,7 +242,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                     .assemble_command()
                 )
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
                 process.start()
 
             elif self.step == "obtained_product_path":
@@ -246,7 +252,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                     .assemble_command()
                 )
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
                 process.start()
 
             elif self.step == "obrained_devices":
@@ -263,7 +269,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                 )
 
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
                 process.start()
             elif self.step == "installed":
                 command = (self.simctl_command_builder
@@ -275,7 +281,7 @@ class IosExecCommand(ExecCommand, ProcessListener):
                     .assemble_command()
                 )
                 print(command)
-                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True)
+                process = AsyncProcess(cmd=None, shell_cmd=command, env=self.env, listener=self, shell=True, cwd=self.working_dir)
                 process.start()
 
             elif self.step == "spawned":
